@@ -71,7 +71,7 @@ export function useAlerts(): Alert[] {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase!.removeChannel(channel);
     };
   }, []);
 

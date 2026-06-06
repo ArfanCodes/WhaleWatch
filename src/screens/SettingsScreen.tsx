@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ScreenHeader from '../components/ScreenHeader';
 import { colors, font, radius, space, type } from '../theme';
-import { supabase } from '../lib/supabase';
+import { signOut } from 'firebase/auth';
+import { firebaseAuth } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -27,19 +28,15 @@ export default function SettingsScreen() {
         style: 'destructive',
         onPress: async () => {
           setSigningOut(true);
-          await supabase?.auth.signOut();
+          if (firebaseAuth) await signOut(firebaseAuth);
           setSigningOut(false);
         },
       },
     ]);
   }
 
-  const displayName = user?.user_metadata?.full_name
-    ?? user?.user_metadata?.name
-    ?? user?.email
-    ?? 'Signed in';
-
-  const provider = user?.app_metadata?.provider ?? 'email';
+  const displayName = user?.displayName ?? user?.email ?? 'Signed in';
+  const provider = user?.providerData?.[0]?.providerId === 'google.com' ? 'Google' : 'Email';
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -52,10 +49,7 @@ export default function SettingsScreen() {
             <Text style={styles.section}>Account</Text>
             <View style={styles.card}>
               <Row label="Signed in as" value={displayName} />
-              <Row
-                label="Sign-in method"
-                value={provider === 'google' ? 'Google' : 'Email OTP'}
-              />
+              <Row label="Sign-in method" value={provider} />
             </View>
 
             <Pressable

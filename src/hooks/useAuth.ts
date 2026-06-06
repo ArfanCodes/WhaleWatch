@@ -1,37 +1,29 @@
-// Auth state hook — single source of truth for the logged-in user.
 import { useState, useEffect } from 'react';
-import { Session, User } from '@supabase/supabase-js';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { User, onAuthStateChanged } from 'firebase/auth';
+import { firebaseAuth, isFirebaseConfigured } from '../lib/firebase';
 
 export interface AuthState {
-  session: Session | null;
   user: User | null;
   loading: boolean;
 }
 
 export function useAuth(): AuthState {
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isSupabaseConfigured || !supabase) {
+    if (!isFirebaseConfigured || !firebaseAuth) {
       setLoading(false);
       return;
     }
 
-    // Hydrate from storage on first mount.
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
+    const unsubscribe = onAuthStateChanged(firebaseAuth, (firebaseUser) => {
+      setUser(firebaseUser);
       setLoading(false);
     });
 
-    // Listen for sign-in / sign-out events.
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession);
-    });
-
-    return () => listener.subscription.unsubscribe();
+    return unsubscribe;
   }, []);
 
-  return { session, user: session?.user ?? null, loading };
+  return { user, loading };
 }

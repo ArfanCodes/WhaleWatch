@@ -49,12 +49,11 @@ const icons: Record<string, keyof typeof Ionicons.glyphMap> = {
 // Extracted so useSafeAreaInsets() can be called inside SafeAreaProvider.
 function AppNavigator() {
   const insets = useSafeAreaInsets();
-  const { session, loading } = useAuth();
+  const { user, loading } = useAuth();
   const TAB_H = 52 + insets.bottom;
 
   useEffect(() => { startKeepAlive(); }, []);
 
-  // Splash/loading state while Supabase hydrates the session.
   if (loading) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
@@ -63,8 +62,7 @@ function AppNavigator() {
     );
   }
 
-  // Not signed in → show auth screen (no tabs).
-  if (!session) {
+  if (!user) {
     return (
       <>
         <StatusBar style="light" />
