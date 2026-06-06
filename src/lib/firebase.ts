@@ -1,14 +1,5 @@
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
-import {
-  Auth,
-  initializeAuth,
-  // getReactNativePersistence is in the Metro/RN bundle — suppress the tsc
-  // module-not-found error with @ts-ignore; it works fine at runtime in Expo Go
-  // and in production builds.
-  // @ts-ignore
-  getReactNativePersistence,
-} from 'firebase/auth';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Auth, initializeAuth, inMemoryPersistence } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey:            process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -24,7 +15,7 @@ export const isFirebaseConfigured = Boolean(
   firebaseConfig.apiKey && firebaseConfig.projectId,
 );
 
-/** Web Client ID for Google Sign-In (set after enabling Google provider) */
+/** Web Client ID for Google Sign-In */
 export const googleWebClientId =
   process.env.EXPO_PUBLIC_FIREBASE_GOOGLE_CLIENT_ID ?? '';
 
@@ -37,11 +28,11 @@ if (isFirebaseConfigured) {
       ? initializeApp(firebaseConfig as Record<string, string>)
       : getApps()[0];
 
-  // AsyncStorage persistence keeps the user signed in across restarts.
-  // Works in Expo Go (Metro) and production builds alike.
-  _auth = initializeAuth(_app, {
-    persistence: getReactNativePersistence(AsyncStorage),
-  });
+  // inMemoryPersistence works reliably in both Expo Go and production.
+  // For cross-restart session persistence in a dev/production build, swap this
+  // for getReactNativePersistence(AsyncStorage) from 'firebase/auth/react-native'
+  // — that sub-path isn't available in Expo Go's Metro bundle.
+  _auth = initializeAuth(_app, { persistence: inMemoryPersistence });
 }
 
 export const firebaseApp  = _app;
