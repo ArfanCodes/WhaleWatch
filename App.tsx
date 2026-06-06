@@ -21,6 +21,8 @@ import FeedScreen from './src/screens/FeedScreen';
 import WatchlistScreen from './src/screens/WatchlistScreen';
 import AlertsScreen from './src/screens/AlertsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import AuthScreen from './src/screens/AuthScreen';
+import { useAuth } from './src/hooks/useAuth';
 import { colors } from './src/theme';
 
 const Tab = createBottomTabNavigator();
@@ -47,11 +49,29 @@ const icons: Record<string, keyof typeof Ionicons.glyphMap> = {
 // Extracted so useSafeAreaInsets() can be called inside SafeAreaProvider.
 function AppNavigator() {
   const insets = useSafeAreaInsets();
-  // TAB_H: icon + label row height (48) + safe-area bottom inset so the bar
-  // sits above the gesture strip / home indicator on all devices.
+  const { session, loading } = useAuth();
   const TAB_H = 52 + insets.bottom;
 
   useEffect(() => { startKeepAlive(); }, []);
+
+  // Splash/loading state while Supabase hydrates the session.
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator color={colors.neon} />
+      </View>
+    );
+  }
+
+  // Not signed in → show auth screen (no tabs).
+  if (!session) {
+    return (
+      <>
+        <StatusBar style="light" />
+        <AuthScreen />
+      </>
+    );
+  }
 
   return (
     <>
