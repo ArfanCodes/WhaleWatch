@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { startKeepAlive } from './src/lib/keepAlive';
 import {
@@ -44,30 +44,17 @@ const icons: Record<string, keyof typeof Ionicons.glyphMap> = {
   Settings: 'settings',
 };
 
-export default function App() {
-  const [fontsLoaded] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-    Inter_800ExtraBold,
-    Inter_900Black,
-  });
+// Extracted so useSafeAreaInsets() can be called inside SafeAreaProvider.
+function AppNavigator() {
+  const insets = useSafeAreaInsets();
+  // TAB_H: icon + label row height (48) + safe-area bottom inset so the bar
+  // sits above the gesture strip / home indicator on all devices.
+  const TAB_H = 52 + insets.bottom;
 
-  // Prevent Supabase free-tier project from pausing.
   useEffect(() => { startKeepAlive(); }, []);
 
-  if (!fontsLoaded) {
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator color={colors.neon} />
-      </View>
-    );
-  }
-
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-    <SafeAreaProvider>
+    <>
       <StatusBar style="light" />
       <NavigationContainer theme={navTheme}>
         <Tab.Navigator
@@ -78,9 +65,10 @@ export default function App() {
             tabBarStyle: {
               backgroundColor: colors.surface,
               borderTopColor: colors.border,
-              height: 62,
-              paddingBottom: 8,
+              height: TAB_H,
               paddingTop: 6,
+              // Push icon+label up; leave the rest for the gesture strip.
+              paddingBottom: insets.bottom > 0 ? insets.bottom : 8,
             },
             tabBarLabelStyle: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
             tabBarIcon: ({ color, size }) => (
@@ -94,7 +82,33 @@ export default function App() {
           <Tab.Screen name="Settings" component={SettingsScreen} />
         </Tab.Navigator>
       </NavigationContainer>
-    </SafeAreaProvider>
+    </>
+  );
+}
+
+export default function App() {
+  const [fontsLoaded] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+    Inter_800ExtraBold,
+    Inter_900Black,
+  });
+
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator color={colors.neon} />
+      </View>
+    );
+  }
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <AppNavigator />
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
