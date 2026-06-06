@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
-import { makeRedirectUri } from 'expo-auth-session';
+import * as Linking from 'expo-linking';
 import { supabase } from '../lib/supabase';
 import { colors, font, radius, space, type } from '../theme';
 
@@ -27,31 +27,52 @@ export default function AuthScreen() {
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Extract tokens from a deep-link URL and hand them to Supabase.
+  async function handleAuthUrl(url: string) {
+    if (!supabase || !url) return;
+    try {
+      // Tokens arrive in the URL fragment (#access_token=...&refresh_token=...)
+      const hash = url.includes('#') ? url.split('#')[1] : url.split('?')[1] ?? '';
+      const params = new URLSearchParams(hash);
+      const accessToken = params.get('access_token');
+      const refreshToken = params.get('refresh_token');
+      if (accessToken && refreshToken) {
+        await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+      }
+    } catch (_) { /* non-auth deep link, ignore */ }
+  }
+
+  // Listen for the deep link that arrives after Google OAuth completes.
+  useEffect(() => {
+    // Handle the case where the app was cold-started via the deep link.
+    Linking.getInitialURL().then(url => { if (url) handleAuthUrl(url); });
+    // Handle the case where the app was already open (warm start / foreground).
+    const sub = Linking.addEventListener('url', ({ url }) => handleAuthUrl(url));
+    return () => sub.remove();
+  }, []);
+
   // ── Google sign-in ────────────────────────────────────────────────────────
   async function handleGoogle() {
     if (!supabase) return;
     setLoading(true);
     try {
-      const redirectTo = makeRedirectUri({ scheme: 'whalewatch', path: 'auth' });
+      // The redirect must match a whitelisted URI in Supabase Auth settings.
+      // We use the custom scheme so Android routes it back to the app.
+      const redirectTo = 'whalewatch://auth-callback';
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: {
-          redirectTo,
-          skipBrowserRedirect: true,
-        },
+        options: { redirectTo, skipBrowserRedirect: true },
       });
       if (error) throw error;
-      if (!data.url) throw new Error('No auth URL');
+      if (!data.url) throw new Error('No OAuth URL returned');
+
+      // Open Google consent in a dismissible browser sheet.
+      // openAuthSessionAsync watches for our scheme and closes automatically.
       const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
-      if (result.type === 'success' && result.url) {
-        const url = new URL(result.url);
-        const accessToken = url.searchParams.get('access_token') ??
-          new URLSearchParams(url.hash.slice(1)).get('access_token');
-        const refreshToken = url.searchParams.get('refresh_token') ??
-          new URLSearchParams(url.hash.slice(1)).get('refresh_token');
-        if (accessToken && refreshToken) {
-          await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-        }
+
+      if (result.type === 'success') {
+        await handleAuthUrl(result.url);
       }
     } catch (e: any) {
       Alert.alert('Google sign-in failed', e.message ?? 'Please try again.');
