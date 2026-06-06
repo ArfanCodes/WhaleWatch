@@ -19,35 +19,33 @@ import { colors, font, radius, space, type } from '../theme';
 
 WebBrowser.maybeCompleteAuthSession();
 
-type Step = 'landing' | 'email_input' | 'otp_input';
+// The redirect must be whitelisted in Supabase Auth → URL Configuration.
+const REDIRECT_URI = 'whalewatch://auth-callback';
+
+type Step = 'landing' | 'email_input' | 'check_email';
 
 export default function AuthScreen() {
   const [step, setStep] = useState<Step>('landing');
   const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Extract tokens from a deep-link URL and hand them to Supabase.
-  async function handleAuthUrl(url: string) {
+  // ── Deep-link handler: catch magic-link redirect and set session ──────────
+  async function handleUrl(url: string) {
     if (!supabase || !url) return;
     try {
-      // Tokens arrive in the URL fragment (#access_token=...&refresh_token=...)
-      const hash = url.includes('#') ? url.split('#')[1] : url.split('?')[1] ?? '';
-      const params = new URLSearchParams(hash);
+      const fragment = url.includes('#') ? url.split('#')[1] : url.split('?')[1] ?? '';
+      const params = new URLSearchParams(fragment);
       const accessToken = params.get('access_token');
       const refreshToken = params.get('refresh_token');
       if (accessToken && refreshToken) {
         await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
       }
-    } catch (_) { /* non-auth deep link, ignore */ }
+    } catch (_) {}
   }
 
-  // Listen for the deep link that arrives after Google OAuth completes.
   useEffect(() => {
-    // Handle the case where the app was cold-started via the deep link.
-    Linking.getInitialURL().then(url => { if (url) handleAuthUrl(url); });
-    // Handle the case where the app was already open (warm start / foreground).
-    const sub = Linking.addEventListener('url', ({ url }) => handleAuthUrl(url));
+    Linking.getInitialURL().then(url => { if (url) handleUrl(url); });
+    const sub = Linking.addEventListener('url', ({ url }) => handleUrl(url));
     return () => sub.remove();
   }, []);
 
@@ -56,24 +54,14 @@ export default function AuthScreen() {
     if (!supabase) return;
     setLoading(true);
     try {
-      // The redirect must match a whitelisted URI in Supabase Auth settings.
-      // We use the custom scheme so Android routes it back to the app.
-      const redirectTo = 'whalewatch://auth-callback';
-
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo, skipBrowserRedirect: true },
+        options: { redirectTo: REDIRECT_URI, skipBrowserRedirect: true },
       });
       if (error) throw error;
       if (!data.url) throw new Error('No OAuth URL returned');
-
-      // Open Google consent in a dismissible browser sheet.
-      // openAuthSessionAsync watches for our scheme and closes automatically.
-      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
-
-      if (result.type === 'success') {
-        await handleAuthUrl(result.url);
-      }
+      const result = await WebBrowser.openAuthSessionAsync(data.url, REDIRECT_URI);
+      if (result.type === 'success') await handleUrl(result.url);
     } catch (e: any) {
       Alert.alert('Google sign-in failed', e.message ?? 'Please try again.');
     } finally {
@@ -81,8 +69,8 @@ export default function AuthScreen() {
     }
   }
 
-  // ── Email OTP: send code ──────────────────────────────────────────────────
-  async function handleSendOtp() {
+  // ── Magic link: send ──────────────────────────────────────────────────────
+  async function handleSendLink() {
     if (!supabase) return;
     const trimmed = email.trim().toLowerCase();
     if (!trimmed.includes('@')) {
@@ -93,36 +81,15 @@ export default function AuthScreen() {
     try {
       const { error } = await supabase.auth.signInWithOtp({
         email: trimmed,
-        options: { shouldCreateUser: true },
+        options: {
+          shouldCreateUser: true,
+          emailRedirectTo: REDIRECT_URI,
+        },
       });
       if (error) throw error;
-      setStep('otp_input');
+      setStep('check_email');
     } catch (e: any) {
-      Alert.alert('Could not send code', e.message ?? 'Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // ── Email OTP: verify code ────────────────────────────────────────────────
-  async function handleVerifyOtp() {
-    if (!supabase) return;
-    const code = otp.trim();
-    if (code.length !== 6) {
-      Alert.alert('Invalid code', 'The code should be 6 digits.');
-      return;
-    }
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.verifyOtp({
-        email: email.trim().toLowerCase(),
-        token: code,
-        type: 'email',
-      });
-      if (error) throw error;
-      // Auth state listener in useAuth() fires → main nav renders automatically.
-    } catch (e: any) {
-      Alert.alert('Invalid code', e.message ?? 'Check the code and try again.');
+      Alert.alert('Could not send link', e.message ?? 'Please try again.');
     } finally {
       setLoading(false);
     }
@@ -140,123 +107,148 @@ export default function AuthScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Logo / hero */}
-          <View style={styles.hero}>
-            <Text style={styles.logo}>🐋</Text>
-            <Text style={styles.appName}>WhaleWatch</Text>
-            <Text style={styles.tagline}>Whale moves + crowd mood, fused.</Text>
-          </View>
-
-          {/* Landing: two auth options */}
+          {/* ── Landing ── */}
           {step === 'landing' && (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Sign in to continue</Text>
-
-              {/* Google button */}
-              <Pressable
-                onPress={handleGoogle}
-                style={({ pressed }) => [styles.googleBtn, pressed && styles.pressed]}
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color={colors.bg} size="small" />
-                ) : (
-                  <>
-                    <Text style={styles.googleIcon}>G</Text>
-                    <Text style={styles.googleLabel}>Continue with Google</Text>
-                  </>
-                )}
-              </Pressable>
-
-              <View style={styles.dividerRow}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>or</Text>
-                <View style={styles.dividerLine} />
+            <>
+              <View style={styles.hero}>
+                <Text style={styles.logo}>🐋</Text>
+                <Text style={styles.appName}>WhaleWatch</Text>
+                <Text style={styles.tagline}>Whale moves + crowd mood, fused.</Text>
               </View>
 
-              {/* Email button */}
-              <Pressable
-                onPress={() => setStep('email_input')}
-                style={({ pressed }) => [styles.emailBtn, pressed && styles.pressed]}
-              >
-                <Text style={styles.emailLabel}>Continue with email</Text>
-              </Pressable>
-            </View>
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Sign in to continue</Text>
+
+                <Pressable
+                  onPress={handleGoogle}
+                  style={({ pressed }) => [styles.googleBtn, pressed && styles.pressed]}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator color={colors.bg} size="small" />
+                  ) : (
+                    <>
+                      <Text style={styles.googleG}>G</Text>
+                      <Text style={styles.googleLabel}>Continue with Google</Text>
+                    </>
+                  )}
+                </Pressable>
+
+                <View style={styles.dividerRow}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>or</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+
+                <Pressable
+                  onPress={() => setStep('email_input')}
+                  style={({ pressed }) => [styles.emailBtn, pressed && styles.pressed]}
+                >
+                  <Text style={styles.emailLabel}>Continue with email</Text>
+                </Pressable>
+              </View>
+            </>
           )}
 
-          {/* Email input */}
+          {/* ── Email input ── */}
           {step === 'email_input' && (
-            <View style={styles.card}>
-              <Pressable onPress={() => setStep('landing')} style={styles.backBtn}>
-                <Text style={styles.backText}>← Back</Text>
-              </Pressable>
-              <Text style={styles.cardTitle}>Enter your email</Text>
-              <Text style={styles.cardSub}>
-                We'll send a 6-digit code — no password needed.
-              </Text>
-              <TextInput
-                style={styles.input}
-                placeholder="you@example.com"
-                placeholderTextColor={colors.textFaint}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoFocus
-                returnKeyType="send"
-                onSubmitEditing={handleSendOtp}
-              />
-              <Pressable
-                onPress={handleSendOtp}
-                style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
-                disabled={loading || !email.trim()}
-              >
-                {loading
-                  ? <ActivityIndicator color={colors.bg} size="small" />
-                  : <Text style={styles.primaryLabel}>Send code</Text>
-                }
-              </Pressable>
-            </View>
+            <>
+              <View style={styles.hero}>
+                <Text style={styles.logo}>🐋</Text>
+                <Text style={styles.appName}>WhaleWatch</Text>
+              </View>
+
+              <View style={styles.card}>
+                <Pressable onPress={() => setStep('landing')} style={styles.backBtn}>
+                  <Text style={styles.backText}>← Back</Text>
+                </Pressable>
+
+                <Text style={styles.cardTitle}>Enter your email</Text>
+                <Text style={styles.cardSub}>
+                  We'll send you a sign-in link — no password needed.
+                </Text>
+
+                <TextInput
+                  style={styles.input}
+                  placeholder="you@example.com"
+                  placeholderTextColor={colors.textFaint}
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoFocus
+                  returnKeyType="send"
+                  onSubmitEditing={handleSendLink}
+                />
+
+                <Pressable
+                  onPress={handleSendLink}
+                  style={({ pressed }) => [
+                    styles.primaryBtn,
+                    (!email.trim() || loading) && styles.primaryBtnDisabled,
+                    pressed && styles.pressed,
+                  ]}
+                  disabled={loading || !email.trim()}
+                >
+                  {loading
+                    ? <ActivityIndicator color={colors.bg} size="small" />
+                    : <Text style={styles.primaryLabel}>Send sign-in link</Text>
+                  }
+                </Pressable>
+              </View>
+            </>
           )}
 
-          {/* OTP input */}
-          {step === 'otp_input' && (
-            <View style={styles.card}>
-              <Pressable onPress={() => setStep('email_input')} style={styles.backBtn}>
-                <Text style={styles.backText}>← Back</Text>
-              </Pressable>
-              <Text style={styles.cardTitle}>Check your email</Text>
-              <Text style={styles.cardSub}>
-                We sent a 6-digit code to{' '}
-                <Text style={{ color: colors.neon }}>{email.trim()}</Text>
-              </Text>
-              <TextInput
-                style={[styles.input, styles.otpInput]}
-                placeholder="000000"
-                placeholderTextColor={colors.textFaint}
-                value={otp}
-                onChangeText={t => setOtp(t.replace(/[^0-9]/g, '').slice(0, 6))}
-                keyboardType="number-pad"
-                autoFocus
-                returnKeyType="done"
-                onSubmitEditing={handleVerifyOtp}
-                maxLength={6}
-              />
-              <Pressable
-                onPress={handleVerifyOtp}
-                style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
-                disabled={loading || otp.length !== 6}
-              >
-                {loading
-                  ? <ActivityIndicator color={colors.bg} size="small" />
-                  : <Text style={styles.primaryLabel}>Verify code</Text>
-                }
-              </Pressable>
-              <Pressable onPress={handleSendOtp} style={styles.resendBtn} disabled={loading}>
-                <Text style={styles.resendText}>Resend code</Text>
-              </Pressable>
-            </View>
+          {/* ── Check email ── */}
+          {step === 'check_email' && (
+            <>
+              <View style={styles.hero}>
+                <Text style={styles.inboxIcon}>📬</Text>
+                <Text style={styles.appName}>Check your email</Text>
+                <Text style={styles.tagline}>We sent a sign-in link to</Text>
+                <Text style={styles.emailHighlight}>{email.trim()}</Text>
+              </View>
+
+              <View style={styles.card}>
+                <Text style={styles.checkInstruction}>
+                  Open the link in the email and you'll be signed in automatically.
+                </Text>
+
+                <View style={styles.stepRow}>
+                  <View style={styles.stepBubble}><Text style={styles.stepNum}>1</Text></View>
+                  <Text style={styles.stepText}>Open your email app</Text>
+                </View>
+                <View style={styles.stepRow}>
+                  <View style={styles.stepBubble}><Text style={styles.stepNum}>2</Text></View>
+                  <Text style={styles.stepText}>Tap the sign-in link from WhaleWatch</Text>
+                </View>
+                <View style={styles.stepRow}>
+                  <View style={styles.stepBubble}><Text style={styles.stepNum}>3</Text></View>
+                  <Text style={styles.stepText}>You'll be brought back here, signed in</Text>
+                </View>
+
+                <View style={styles.dividerRow} />
+
+                <Pressable
+                  onPress={handleSendLink}
+                  style={({ pressed }) => [styles.resendBtn, pressed && styles.pressed]}
+                  disabled={loading}
+                >
+                  {loading
+                    ? <ActivityIndicator color={colors.neon} size="small" />
+                    : <Text style={styles.resendText}>Resend link</Text>
+                  }
+                </Pressable>
+
+                <Pressable
+                  onPress={() => { setStep('email_input'); }}
+                  style={({ pressed }) => [styles.changeEmailBtn, pressed && styles.pressed]}
+                >
+                  <Text style={styles.changeEmailText}>Use a different email</Text>
+                </Pressable>
+              </View>
+            </>
           )}
         </ScrollView>
       </KeyboardAvoidingView>
@@ -268,8 +260,9 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   scroll: { flexGrow: 1, justifyContent: 'center', padding: space.xl },
 
-  hero: { alignItems: 'center', marginBottom: 36 },
-  logo: { fontSize: 64, marginBottom: space.sm },
+  hero: { alignItems: 'center', marginBottom: 32 },
+  logo: { fontSize: 60, marginBottom: space.sm },
+  inboxIcon: { fontSize: 60, marginBottom: space.sm },
   appName: {
     color: colors.text,
     fontSize: font.xxl,
@@ -281,6 +274,12 @@ const styles = StyleSheet.create({
     fontSize: font.sm,
     fontFamily: type.regular,
     marginTop: 6,
+  },
+  emailHighlight: {
+    color: colors.neon,
+    fontSize: font.md,
+    fontFamily: type.semibold,
+    marginTop: 4,
   },
 
   card: {
@@ -311,10 +310,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.text,
     borderRadius: radius.md,
     paddingVertical: 14,
-    paddingHorizontal: space.lg,
     marginTop: space.sm,
   },
-  googleIcon: {
+  googleG: {
     color: colors.bg,
     fontSize: font.md,
     fontFamily: type.extrabold,
@@ -364,13 +362,6 @@ const styles = StyleSheet.create({
     fontFamily: type.regular,
     marginBottom: space.lg,
   },
-  otpInput: {
-    fontSize: 28,
-    fontFamily: type.extrabold,
-    letterSpacing: 8,
-    textAlign: 'center',
-    fontVariant: ['tabular-nums'],
-  },
 
   primaryBtn: {
     backgroundColor: colors.neon,
@@ -378,6 +369,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: 'center',
   },
+  primaryBtnDisabled: { opacity: 0.45 },
   primaryLabel: {
     color: colors.bg,
     fontSize: font.md,
@@ -385,10 +377,46 @@ const styles = StyleSheet.create({
   },
 
   pressed: { opacity: 0.8, transform: [{ scale: 0.99 }] },
-
   backBtn: { marginBottom: space.md },
   backText: { color: colors.textDim, fontSize: font.sm, fontFamily: type.medium },
 
-  resendBtn: { alignItems: 'center', marginTop: space.lg },
-  resendText: { color: colors.neon, fontSize: font.sm, fontFamily: type.semibold },
+  // Check email step
+  checkInstruction: {
+    color: colors.textDim,
+    fontSize: font.sm,
+    fontFamily: type.regular,
+    lineHeight: 20,
+    marginBottom: space.lg,
+  },
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: space.md,
+  },
+  stepBubble: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.neon + '22',
+    borderWidth: 1,
+    borderColor: colors.neon + '55',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: space.md,
+  },
+  stepNum: { color: colors.neon, fontSize: font.xs, fontFamily: type.extrabold },
+  stepText: { color: colors.text, fontSize: font.sm, fontFamily: type.medium, flex: 1 },
+
+  resendBtn: {
+    borderWidth: 1,
+    borderColor: colors.neon + '55',
+    borderRadius: radius.md,
+    paddingVertical: 13,
+    alignItems: 'center',
+    marginBottom: space.md,
+  },
+  resendText: { color: colors.neon, fontSize: font.sm, fontFamily: type.bold },
+
+  changeEmailBtn: { alignItems: 'center', paddingVertical: space.sm },
+  changeEmailText: { color: colors.textFaint, fontSize: font.sm, fontFamily: type.medium },
 });
