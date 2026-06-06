@@ -1,21 +1,53 @@
-The MIT License (MIT)
+WhaleWatch — Proprietary License
+Copyright (c) 2026 ArfanCodes (Arfaan Mohammed). All rights reserved.
 
-Copyright (c) 2015-present 650 Industries, Inc. (aka Expo)
+================================================================================
+ALL RIGHTS RESERVED — NO COPYING, NO REUSE, NO REDISTRIBUTION
+================================================================================
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This source code and all associated files (the "Software") are made publicly
+viewable for demonstration, evaluation, and portfolio purposes ONLY.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+This is NOT open-source software. No license, right, or permission is granted
+to any person to use, copy, modify, merge, publish, distribute, sublicense,
+reproduce, or create derivative works from the Software, in whole or in part,
+by any means, without the prior express WRITTEN permission of the copyright
+holder.
+
+Specifically, the following are PROHIBITED without written permission:
+
+  1. Copying or cloning this repository (or any part of its code) for use in
+     any other project, whether personal, academic, commercial, or otherwise.
+  2. Modifying, adapting, translating, or creating derivative works.
+  3. Redistributing, republishing, mirroring, or hosting the Software elsewhere.
+  4. Using the Software, or any portion of its code, logic, or design, in any
+     product or service.
+  5. Removing or altering this license or any copyright notice.
+
+PERMITTED:
+
+  - Viewing the source code on this hosting platform for the purpose of
+    evaluating the author's work.
+
+--------------------------------------------------------------------------------
+COLLABORATION
+--------------------------------------------------------------------------------
+
+This project is open to COLLABORATION, not copying. If you find this work
+interesting, have ideas to improve it, or wish to use any part of it, please
+reach out — I would much rather build together than have the work taken.
+
+  Contact: https://github.com/ArfanCodes  (open an issue or message directly)
+
+Permission for any use described above may be granted on a case-by-case basis
+in writing. When in doubt, ask first.
+
+--------------------------------------------------------------------------------
+NO WARRANTY
+--------------------------------------------------------------------------------
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING
+FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR ITS USE.
