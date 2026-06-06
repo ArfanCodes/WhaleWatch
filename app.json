@@ -3,6 +3,7 @@
     "name": "WhaleWatch",
     "slug": "WhaleWatch",
     "version": "1.0.0",
+    "sdkVersion": "54.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -10,10 +11,12 @@
     "scheme": "whalewatch",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.arfancodes.whalewatch"
+      "bundleIdentifier": "com.arfancodes.whalewatch",
+      "newArchEnabled": true
     },
     "android": {
       "package": "com.arfancodes.whalewatch",
+      "newArchEnabled": true,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
